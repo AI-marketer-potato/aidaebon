@@ -158,14 +158,18 @@ export async function deleteReference(id: string): Promise<boolean> {
   return true;
 }
 
+/** 프롬프트에 넘길 레퍼런스 후보 최대 개수 (토큰/비용 상한) */
+const CANDIDATE_CAP = 20;
+
 /**
- * 특정 업종에 맞는 레퍼런스 선별 (프론트 대본 생성용).
- * 해당 업종 + "공통" 태그를 우선 포함하고, 부족하면 나머지로 채운다.
- * 저장소 읽기에 실패해도 시드 데이터로 폴백해 대본 생성이 멈추지 않게 한다.
+ * 대본 생성에 쓸 레퍼런스 "후보 풀"을 준다 (프론트 대본 생성용).
+ * - 업종 무관 전체를 후보로 주고, 실제 "어떤 게 가장 잘 맞는지"는 프롬프트에서
+ *   AI 가 직접 고른다 (타 업종의 후크 패턴도 응용 가능하도록).
+ * - 단, 상한에 걸렸을 때 관련 높은 게 살아남도록 해당 업종 + "공통" 을 앞에 배치.
+ * - 저장소 읽기에 실패해도 시드로 폴백해 대본 생성이 멈추지 않게 한다.
  */
-export async function getReferencesForIndustry(
+export async function getReferenceCandidates(
   industry: string,
-  limit = 4,
 ): Promise<Reference[]> {
   let list: Reference[];
   try {
@@ -175,13 +179,9 @@ export async function getReferencesForIndustry(
     list = sortByNewest(SEED);
   }
 
-  const matched = list.filter(
+  const preferred = list.filter(
     (r) => r.industry === industry || r.industry === "공통",
   );
-  const picked = matched.slice(0, limit);
-  if (picked.length < limit) {
-    const rest = list.filter((r) => !picked.includes(r));
-    picked.push(...rest.slice(0, limit - picked.length));
-  }
-  return picked;
+  const rest = list.filter((r) => !preferred.includes(r));
+  return [...preferred, ...rest].slice(0, CANDIDATE_CAP);
 }

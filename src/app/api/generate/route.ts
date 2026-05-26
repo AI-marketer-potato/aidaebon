@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { buildMessages } from "@/lib/prompt";
 import { streamScript } from "@/lib/openai";
-import { getReferencesForIndustry } from "@/lib/store";
+import { getReferenceCandidates } from "@/lib/store";
 import type { GenerateRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
     return new Response("업종·지역·제작 목적은 필수입니다.", { status: 400 });
   }
 
-  // 업종에 맞는 레퍼런스를 골라 프롬프트에 주입
-  const refs = await getReferencesForIndustry(body.industry);
+  // 레퍼런스 후보 풀을 프롬프트에 주입 (어떤 걸 쓸지는 AI 가 직접 고름)
+  const refs = await getReferenceCandidates(body.industry);
   const messages = buildMessages(body, refs);
 
   const encoder = new TextEncoder();
