@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import { put, get } from "@vercel/blob";
+import { put, list as listBlobs } from "@vercel/blob";
 import type { Reference } from "./types";
 import seedData from "../../data/references.json";
 
@@ -32,20 +32,29 @@ const isBlobBackend = (): boolean => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 const BLOB_KEY = "references.json"; // Blob 안의 고정 파일명
 
 async function loadAllBlob(): Promise<Reference[]> {
-  // useCache: false → CDN 캐시를 건너뛰고 항상 최신본을 읽는다.
-  //   (어드민이 방금 저장한 내용이 프론트에 바로 반영되도록)
-  const result = await get(BLOB_KEY, { access: "private", useCache: false });
-  if (!result) return SEED; // 아직 한 번도 저장 안 됨 → 시드 데이터
-  const text = await new Response(result.stream).text();
-  return JSON.parse(text) as Reference[];
+  // 먼저 list 로 파일 존재 여부를 확인한다.
+  //  - list 는 파일이 없어도 빈 배열을 돌려줄 뿐 예외를 던지지 않는다.
+  //    (get 은 빈 저장소에서 400 을 던져 첫 사용 시 500 을 유발했었음)
+  //  - 없으면 시드 데이터로 폴백 → 쓰기 경로가 시드를 덮어쓰는 사고도 방지.
+  const { blobs } = await listBlobs({ prefix: BLOB_KEY, limit: 1 });
+  const found = blobs.find((b) => b.pathname === BLOB_KEY);
+  if (!found) return SEED; // 아직 한 번도 저장 안 됨
+
+  // 공개 blob URL 을 직접 fetch. cache:no-store 로 가능한 최신본을 읽는다.
+  const res = await fetch(found.url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Blob 읽기 실패: HTTP ${res.status}`);
+  }
+  return (await res.json()) as Reference[];
 }
 
-async function saveAllBlob(list: Reference[]): Promise<void> {
-  await put(BLOB_KEY, JSON.stringify(list, null, 2), {
-    access: "private",
+async function saveAllBlob(items: Reference[]): Promise<void> {
+  await put(BLOB_KEY, JSON.stringify(items, null, 2), {
+    access: "public", // CLI 로 만든 스토어는 public. 레퍼런스는 비민감 정보.
     addRandomSuffix: false,
     allowOverwrite: true,
     contentType: "application/json",
+    cacheControlMaxAge: 60, // 최소값(1분). 어드민 수정이 늦어도 1분 내 반영
   });
 }
 
