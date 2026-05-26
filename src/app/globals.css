@@ -1,0 +1,212 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  --background: #07060f;
+  --foreground: #f5f3ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* ===== 움직이는 배경 그라데이션 블롭 ===== */
+.aurora {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+.aurora::before,
+.aurora::after {
+  content: "";
+  position: absolute;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 9999px;
+  filter: blur(120px);
+  opacity: 0.55;
+  background: conic-gradient(
+    from 180deg,
+    #7c3aed,
+    #db2777,
+    #2563eb,
+    #06b6d4,
+    #7c3aed
+  );
+  animation: float-blob 18s ease-in-out infinite;
+}
+.aurora::before {
+  top: -20vw;
+  left: -10vw;
+}
+.aurora::after {
+  bottom: -25vw;
+  right: -15vw;
+  animation-delay: -9s;
+  animation-duration: 22s;
+  background: conic-gradient(
+    from 0deg,
+    #f43f5e,
+    #8b5cf6,
+    #3b82f6,
+    #f43f5e
+  );
+}
+
+@keyframes float-blob {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate(8vw, 6vh) scale(1.15) rotate(120deg);
+  }
+  66% {
+    transform: translate(-6vw, -4vh) scale(0.92) rotate(240deg);
+  }
+}
+
+/* ===== 그라데이션 텍스트 ===== */
+.gradient-text {
+  background: linear-gradient(100deg, #c4b5fd, #f0abfc, #93c5fd, #67e8f9);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 6s linear infinite;
+}
+@keyframes shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* ===== 글래스 카드 ===== */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ===== 빛나는 CTA 버튼 ===== */
+.glow-btn {
+  position: relative;
+  background: linear-gradient(100deg, #8b5cf6, #ec4899, #6366f1);
+  background-size: 200% auto;
+  transition: background-position 0.5s ease, transform 0.15s ease;
+  box-shadow: 0 10px 40px -10px rgba(139, 92, 246, 0.7);
+}
+.glow-btn:hover:not(:disabled) {
+  background-position: right center;
+  transform: translateY(-2px);
+}
+.glow-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.glow-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 등장 애니메이션 ===== */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ===== 점멸 커서 (스트리밍 중) ===== */
+.typing-cursor::after {
+  content: "▍";
+  animation: blink 1s step-start infinite;
+  color: #c4b5fd;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 커스텀 셀렉트/인풋 포커스 링 */
+.field {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field:focus {
+  outline: none;
+  border-color: rgba(167, 139, 250, 0.8);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
+}
+.field option {
+  background: #15132a;
+  color: #f5f3ff;
+}
+
+/* 토스트 슬라이드 인 */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.toast-in {
+  animation: slide-in-right 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* KPI 카드 미세 호버 */
+.stat-card {
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(167, 139, 250, 0.45);
+}
+
+/* 분포 바 채우기 애니메이션 */
+@keyframes grow-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.bar-fill {
+  transform-origin: left;
+  animation: grow-bar 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 스크롤바 */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.4);
+  border-radius: 9999px;
+}
