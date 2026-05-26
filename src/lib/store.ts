@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import { put, list as listBlobs } from "@vercel/blob";
+import { put, del, list as listBlobs } from "@vercel/blob";
 import type { Reference } from "./types";
 import seedData from "../../data/references.json";
 
@@ -29,19 +29,24 @@ const isBlobBackend = (): boolean => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 
 // ----- Vercel Blob 백엔드 -----
 
-const BLOB_KEY = "references.json"; // Blob 안의 고정 파일명
+// 저장 파일은 매번 고유 이름(references-data-<random>.json)으로 쓴다.
+// 공개 Blob 은 같은 URL 을 CDN 이 최대 1분 캐시하므로, 같은 파일명에 덮어쓰면
+// 방금 저장한 내용을 곧바로 다시 읽을 때 옛 버전이 나온다(→ read-modify-write
+// 과정에서 데이터 유실 위험). 매 저장마다 새 URL 을 만들면 캐시를 타지 않아
+// 항상 최신본을 읽을 수 있다. 읽을 땐 list 로 최신 파일을 고른다.
+const BLOB_PREFIX = "references-";
 
 async function loadAllBlob(): Promise<Reference[]> {
-  // 먼저 list 로 파일 존재 여부를 확인한다.
-  //  - list 는 파일이 없어도 빈 배열을 돌려줄 뿐 예외를 던지지 않는다.
-  //    (get 은 빈 저장소에서 400 을 던져 첫 사용 시 500 을 유발했었음)
-  //  - 없으면 시드 데이터로 폴백 → 쓰기 경로가 시드를 덮어쓰는 사고도 방지.
-  const { blobs } = await listBlobs({ prefix: BLOB_KEY, limit: 1 });
-  const found = blobs.find((b) => b.pathname === BLOB_KEY);
-  if (!found) return SEED; // 아직 한 번도 저장 안 됨
+  // list 는 파일이 없어도 빈 배열만 돌려줄 뿐 예외를 던지지 않는다.
+  //   → 없으면 시드 폴백(쓰기 경로가 시드를 덮어쓰는 사고도 방지).
+  const { blobs } = await listBlobs({ prefix: BLOB_PREFIX });
+  if (blobs.length === 0) return SEED; // 아직 한 번도 저장 안 됨
 
-  // 공개 blob URL 을 직접 fetch. cache:no-store 로 가능한 최신본을 읽는다.
-  const res = await fetch(found.url, { cache: "no-store" });
+  // 가장 최근에 저장된 파일을 읽는다 (새 URL 이라 CDN 캐시 미스 → 최신본 보장).
+  const latest = blobs.reduce((a, b) =>
+    a.uploadedAt.getTime() >= b.uploadedAt.getTime() ? a : b,
+  );
+  const res = await fetch(latest.url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`Blob 읽기 실패: HTTP ${res.status}`);
   }
@@ -49,13 +54,25 @@ async function loadAllBlob(): Promise<Reference[]> {
 }
 
 async function saveAllBlob(items: Reference[]): Promise<void> {
-  await put(BLOB_KEY, JSON.stringify(items, null, 2), {
-    access: "public", // CLI 로 만든 스토어는 public. 레퍼런스는 비민감 정보.
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge: 60, // 최소값(1분). 어드민 수정이 늦어도 1분 내 반영
-  });
+  // 고유 이름으로 새로 쓴다 (매번 새 URL → 캐시 회피 → 항상 최신 읽기 보장).
+  const { url } = await put(
+    `${BLOB_PREFIX}data.json`,
+    JSON.stringify(items, null, 2),
+    {
+      access: "public", // CLI 로 만든 스토어는 public. 레퍼런스는 비민감 정보.
+      addRandomSuffix: true,
+      contentType: "application/json",
+    },
+  );
+
+  // 방금 쓴 것 외의 옛 버전 정리 (실패해도 저장 자체엔 영향 없음).
+  try {
+    const { blobs } = await listBlobs({ prefix: BLOB_PREFIX });
+    const stale = blobs.filter((b) => b.url !== url).map((b) => b.url);
+    if (stale.length > 0) await del(stale);
+  } catch (err) {
+    console.error("[store] 옛 Blob 정리 실패(무시 가능):", err);
+  }
 }
 
 // ----- 로컬 파일 백엔드 -----
