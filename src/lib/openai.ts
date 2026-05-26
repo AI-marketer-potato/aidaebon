@@ -26,7 +26,7 @@ export async function* streamScript(
     const stream = await client.chat.completions.create({
       model: MODEL,
       messages,
-      temperature: 0.85,
+      temperature: 0.95, // 높일수록 표현 다양 (변주 방향 주입과 함께 천편일률 방지)
       stream: true,
     });
 

@@ -64,6 +64,23 @@ function buildReferenceBlock(refs: Reference[]): string {
     .join("\n\n---\n\n");
 }
 
+/**
+ * 대본 "변주 방향" 목록. 매 생성 호출마다 하나를 랜덤으로 골라 주입해,
+ * 같은 업체·같은 입력이라도 결과가 천편일률적이지 않게 한다.
+ */
+const VARIATION_ANGLES = [
+  "정보형 — 몰랐던 사실·꿀팁을 공개하며 저장 욕구 자극",
+  "비포/애프터 반전 — 변화 전후의 강한 대비로 임팩트",
+  "캐릭터·유머 — 사장님/직원 등 인물의 개성·오버리액션으로 웃음",
+  "감성 스토리텔링 — 손님 사연·창업 스토리로 공감과 몰입",
+  "챌린지·참여 유도 — 따라하기·투표·댓글 등 시청자 참여 장치",
+  "제작 과정·ASMR 비주얼 — 만드는 과정의 소리·디테일을 감각적으로",
+  "솔직 리뷰·인터뷰 — 실제 후기·손님 반응을 날것으로 담기",
+  "리스트형 — 'TOP3', '이유 3가지' 등 정리·요약 포맷",
+  "비교·대조 — 흔한 실수 vs 정답, 우리집 vs 일반 등 대비 구도",
+  "의외성·반전 떡밥 — 예상 못 한 전개로 끝까지 보게 만들기",
+];
+
 export interface ChatMessage {
   role: "system" | "user";
   content: string;
@@ -75,9 +92,15 @@ export function buildMessages(
   refs: Reference[],
 ): ChatMessage[] {
   const tone = req.tone?.trim() || "업종에 가장 잘 맞는 톤으로 자유롭게";
-  const extra = req.extra?.trim()
-    ? `- 추가 요청사항: ${req.extra.trim()}`
-    : "";
+  const hasExtra = Boolean(req.extra?.trim());
+  const extra = hasExtra ? `- 추가 요청사항: ${req.extra!.trim()}` : "";
+
+  // 호출마다 랜덤 "변주 방향"을 주입한다. API 는 매 호출이 독립적이라
+  // 이전 결과를 모르므로, 이렇게 매번 다른 각도를 부여해야 같은 업체라도
+  // 천편일률적이지 않은 결과가 나온다.
+  const angle = VARIATION_ANGLES[
+    Math.floor(Math.random() * VARIATION_ANGLES.length)
+  ];
 
   const userPrompt = `아래 업체 정보에 맞춰 "조회수 터지는" 릴스 대본을 만들어줘.
 
@@ -88,13 +111,19 @@ export function buildMessages(
 - 원하는 톤: ${tone}
 ${extra}
 
-[참고 후보 — 여러 업종의 터진 릴스 예시. 이 중 이번 업체에 가장 잘 맞는 1~3개를 직접 골라 응용할 것]
+[참고 후보 — 여러 업종의 터진 릴스 예시. 이번 변주 방향에 어울리는 1~3개를 직접 골라 응용할 것]
 ${buildReferenceBlock(refs)}
 
-위 후보 중 이번 업체(${req.industry} · ${req.region} · ${req.purpose})에 가장 잘 맞는 것을 스스로 골라
-그 성공 패턴을 학습·응용하되 그대로 베끼지 말고,
+[이번 영상의 변주 방향] ${angle}
+- 위 변주 방향을 살려 신선하게 구성하라. 같은 업체라도 매번 다른 콘셉트·후크가 나오도록, 뻔하고 천편일률적인 전개는 피한다.
+- 후보 레퍼런스 중 이 변주 방향에 가장 잘 어울리는 것을 골라 그 패턴을 응용하되, 절대 그대로 베끼지 않는다.${
+    hasExtra
+      ? "\n- 단, 위 [업체 정보]의 '추가 요청사항'이 최우선이다. 변주 방향과 충돌하면 추가 요청사항을 따르고, 변주는 그 안에서만 적용한다."
+      : ""
+  }
+
 ${req.region} 지역의 "${req.industry}" 업체가 "${req.purpose}" 목적으로 바로 촬영할 수 있는
-완성도 높은 대본을 [출력 형식]에 맞춰 작성해줘. (어떤 레퍼런스를 골랐는지는 출력하지 말 것)`;
+완성도 높은 대본을 [출력 형식]에 맞춰 작성해줘. (어떤 레퍼런스를 골랐는지·변주 방향이 무엇인지는 출력하지 말 것)`;
 
   return [
     { role: "system", content: SYSTEM_PROMPT },
